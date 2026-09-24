@@ -43,12 +43,12 @@ export default function Sidebar({
   return (
     <aside className="flex flex-col gap-4 xl:col-span-3">
       <div className="flex items-center px-1">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary p-2">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary p-2">
           <Image
             src="/swift-icon.png"
             alt="Swift"
-            width={88}
-            height={74}
+            width={32}
+            height={32}
             className="h-full w-full object-contain"
             priority
           />
