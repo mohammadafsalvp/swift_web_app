@@ -1,4 +1,5 @@
 import Image from "next/image";
+import type { ComponentType, ReactNode } from "react";
 import {
   IconAnalytics,
   IconBlueprints,
@@ -7,6 +8,13 @@ import {
 } from "./icons";
 import { navItems } from "./data";
 
+export interface SidebarItem {
+  key: string;
+  label: string;
+  href: string;
+  Icon: ComponentType<{ className?: string }>;
+}
+
 const iconByKey = {
   blueprints: IconBlueprints,
   vessels: IconVessels,
@@ -14,7 +22,24 @@ const iconByKey = {
   analytics: IconAnalytics,
 };
 
-export default function Sidebar() {
+const defaultItems: SidebarItem[] = navItems.map((item) => ({
+  ...item,
+  Icon: iconByKey[item.key],
+}));
+
+interface SidebarProps {
+  items?: SidebarItem[];
+  activeKey?: string;
+  onItemClick?: (key: string) => void;
+  footer?: ReactNode;
+}
+
+export default function Sidebar({
+  items = defaultItems,
+  activeKey,
+  onItemClick,
+  footer,
+}: SidebarProps) {
   return (
     <aside className="flex flex-col gap-4 xl:col-span-3">
       <div className="flex items-center px-1">
@@ -31,22 +56,45 @@ export default function Sidebar() {
       </div>
 
       <nav aria-label="Main Navigation" className="grid grid-cols-2 gap-2.5">
-        {navItems.map((item) => {
-          const Icon = iconByKey[item.key];
+        {items.map(({ key, label, href, Icon }) => {
+          const isActive = activeKey === key;
           return (
             <a
-              key={item.key}
-              href={item.href}
-              className="group flex flex-col items-center justify-center rounded-lg border border-border bg-surface p-3.5 text-text-secondary shadow-card transition hover:bg-surface-inset"
+              key={key}
+              href={href}
+              aria-current={isActive ? "page" : undefined}
+              onClick={
+                onItemClick
+                  ? (e) => {
+                      e.preventDefault();
+                      onItemClick(key);
+                    }
+                  : undefined
+              }
+              className={`group flex flex-col items-center justify-center rounded-lg border p-3.5 shadow-card transition ${
+                isActive
+                  ? "border-primary bg-primary text-white"
+                  : "border-border bg-surface text-text-secondary hover:bg-surface-inset"
+              }`}
             >
-              <Icon className="mb-1.5 h-5 w-5 text-text-secondary group-hover:text-text-primary" />
-              <span className="text-label-sm font-semibold text-text-primary">
-                {item.label}
+              <Icon
+                className={`mb-1.5 h-5 w-5 ${
+                  isActive ? "text-white" : "text-text-secondary group-hover:text-text-primary"
+                }`}
+              />
+              <span
+                className={`text-label-sm font-semibold ${
+                  isActive ? "text-white" : "text-text-primary"
+                }`}
+              >
+                {label}
               </span>
             </a>
           );
         })}
       </nav>
+
+      {footer}
     </aside>
   );
 }
