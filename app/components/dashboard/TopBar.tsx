@@ -4,9 +4,15 @@ interface TopBarProps {
   query: string;
   onQueryChange: (value: string) => void;
   onUploadClick: () => void;
+  showExport?: boolean;
 }
 
-export default function TopBar({ query, onQueryChange, onUploadClick }: TopBarProps) {
+export default function TopBar({
+  query,
+  onQueryChange,
+  onUploadClick,
+  showExport = true,
+}: TopBarProps) {
   return (
     <header className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
       <div className="relative max-w-2xl flex-1">
@@ -23,13 +29,15 @@ export default function TopBar({ query, onQueryChange, onUploadClick }: TopBarPr
         />
       </div>
       <div className="flex items-center gap-2.5">
-        <button
-          type="button"
-          className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3.5 py-2.5 text-label-md text-text-primary shadow-card transition hover:bg-surface-inset"
-        >
-          <IconExport className="h-4 w-4 text-text-secondary" />
-          Export
-        </button>
+        {showExport ? (
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3.5 py-2.5 text-label-md text-text-primary shadow-card transition hover:bg-surface-inset"
+          >
+            <IconExport className="h-4 w-4 text-text-secondary" />
+            Export
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onUploadClick}
