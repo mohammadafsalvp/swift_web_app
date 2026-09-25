@@ -2,6 +2,7 @@
 
 import { useState, type DragEvent, type FormEvent } from "react";
 import { IconClose, IconUploadCloud } from "./icons";
+import type { ExtractedDocumentFields } from "../../lib/documentExtraction";
 
 export const sectors = ["Marine Vessel", "Offshore Rig", "Onshore Unit"] as const;
 export type Sector = (typeof sectors)[number];
@@ -12,7 +13,25 @@ export interface UploadInput {
   vesselName: string;
   category: string | null;
   file: File;
+  // populated when the AI was able to read job/WIP details out of the file
+  extractedFields?: ExtractedDocumentFields;
 }
+
+const ANALYZABLE_EXTENSIONS = [".pdf", ".docx", ".txt"];
+
+function isAnalyzable(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return ANALYZABLE_EXTENSIONS.some((ext) => name.endsWith(ext));
+}
+
+const EXTRACTED_PREVIEW_FIELDS: { key: keyof ExtractedDocumentFields; label: string }[] = [
+  { key: "customer", label: "Customer" },
+  { key: "jobNo", label: "Job No" },
+  { key: "serialNo", label: "Serial No" },
+  { key: "poStatus", label: "PO Status" },
+  { key: "paymentStatus", label: "Payment Status" },
+  { key: "scopeOfWork", label: "Scope of Work" },
+];
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -38,6 +57,9 @@ export default function UploadModal({
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isExtracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
+  const [extractedFields, setExtractedFields] = useState<ExtractedDocumentFields | null>(null);
 
   if (!isOpen) return null;
 
@@ -48,6 +70,9 @@ export default function UploadModal({
     setCategory(categories?.[0]?.key ?? "");
     setFile(null);
     setError(null);
+    setExtracting(false);
+    setExtractError(null);
+    setExtractedFields(null);
   }
 
   function handleClose() {
@@ -55,14 +80,43 @@ export default function UploadModal({
     onClose();
   }
 
+  async function analyzeFile(selected: File) {
+    setExtracting(true);
+    setExtractError(null);
+    setExtractedFields(null);
+    try {
+      const body = new FormData();
+      body.append("file", selected);
+      const res = await fetch("/api/analyze-document", { method: "POST", body });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not analyze this document.");
+      const fields: ExtractedDocumentFields = data.fields ?? {};
+      setExtractedFields(fields);
+      if (fields.sector) setSector(fields.sector);
+      if (fields.engine) setEngineModel(fields.engine);
+      if (fields.vessel) setVesselName(fields.vessel);
+    } catch (err) {
+      setExtractError(err instanceof Error ? err.message : "Could not analyze this document.");
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  function handleFileSelected(selected: File | null) {
+    setFile(selected);
+    setError(null);
+    setExtractedFields(null);
+    setExtractError(null);
+    if (selected && isAnalyzable(selected)) {
+      void analyzeFile(selected);
+    }
+  }
+
   function handleDrop(e: DragEvent<HTMLLabelElement>) {
     e.preventDefault();
     setDragging(false);
     const dropped = e.dataTransfer.files?.[0];
-    if (dropped) {
-      setFile(dropped);
-      setError(null);
-    }
+    if (dropped) handleFileSelected(dropped);
   }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -78,6 +132,7 @@ export default function UploadModal({
         vesselName,
         category: categories ? category : null,
         file,
+        extractedFields: extractedFields ?? undefined,
       });
       onSuccess(`${file.name} was uploaded to the IDC document library.`);
     } else {
@@ -220,10 +275,7 @@ export default function UploadModal({
                 id="hiddenFileInput"
                 type="file"
                 className="hidden"
-                onChange={(e) => {
-                  setFile(e.target.files?.[0] ?? null);
-                  setError(null);
-                }}
+                onChange={(e) => handleFileSelected(e.target.files?.[0] ?? null)}
               />
               {file ? (
                 <div className="mt-2 text-label-sm font-semibold text-secondary">
@@ -232,6 +284,39 @@ export default function UploadModal({
               ) : null}
             </label>
             {error ? <p className="mt-1.5 text-label-sm text-danger">{error}</p> : null}
+
+            {isExtracting ? (
+              <div className="mt-2.5 flex items-center gap-2 rounded-lg border border-border bg-surface-inset px-3 py-2.5 text-label-sm text-text-secondary">
+                <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-secondary border-t-transparent" />
+                Analyzing document with AI…
+              </div>
+            ) : null}
+
+            {extractError ? (
+              <p className="mt-2.5 rounded-lg border border-danger-bg bg-danger-bg px-3 py-2.5 text-label-sm text-danger">
+                {extractError} You can still fill the fields in manually.
+              </p>
+            ) : null}
+
+            {extractedFields && !isExtracting ? (
+              <div className="mt-2.5 rounded-lg border border-border bg-surface-inset p-3.5">
+                <p className="text-label-sm font-semibold text-secondary">
+                  AI auto-filled details from this document — review before uploading
+                </p>
+                <dl className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
+                  {EXTRACTED_PREVIEW_FIELDS.filter((f) => extractedFields[f.key]).map((f) => (
+                    <div key={f.key} className="min-w-0">
+                      <dt className="text-label-sm uppercase tracking-wider text-placeholder">
+                        {f.label}
+                      </dt>
+                      <dd className="truncate text-body-sm font-medium text-text-primary">
+                        {String(extractedFields[f.key])}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            ) : null}
           </div>
 
           <div className="flex items-center justify-end gap-2.5 pt-3">

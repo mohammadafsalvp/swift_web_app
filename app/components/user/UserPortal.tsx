@@ -7,7 +7,7 @@ import UploadModal, { type UploadInput } from "../dashboard/UploadModal";
 import { IconBlueprints, IconEngine, IconFolder, IconUploadCloud } from "../dashboard/icons";
 import UserSummary from "./UserSummary";
 import UserDocumentsTable from "./UserDocumentsTable";
-import DocumentPreviewModal from "./DocumentPreviewModal";
+import DocumentDetailPanel from "../dashboard/DocumentDetailPanel";
 import { addDocument, downloadDocument, listDocuments } from "./documentsRepo";
 import {
   categories,
@@ -40,6 +40,13 @@ function matchesQuery(doc: UserDocument, query: string) {
     doc.vessel,
     doc.engine,
     categoryLabel[doc.category],
+    doc.customer,
+    doc.jobNo,
+    doc.serialNo,
+    doc.assetId,
+    doc.poNo,
+    doc.invoiceNo,
+    doc.scopeOfWork,
   ]
     .join(" ")
     .toLowerCase();
@@ -161,7 +168,7 @@ export default function UserPortal() {
         categories={categories}
       />
 
-      <DocumentPreviewModal
+      <DocumentDetailPanel
         doc={previewDoc}
         onClose={() => setPreviewDoc(null)}
         onDownload={handleDownload}

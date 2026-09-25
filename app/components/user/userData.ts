@@ -1,4 +1,4 @@
-import type { DocStatus } from "../dashboard/data";
+import type { DocStatus, WipFields } from "../dashboard/data";
 import type { Sector } from "../dashboard/UploadModal";
 
 export const categories = [
@@ -16,7 +16,7 @@ export const categoryLabel = Object.fromEntries(
 ) as Record<CategoryKey, string>;
 
 // shape mirrors the future `documents` table; `objectUrl` only exists for files uploaded this session
-export interface UserDocument {
+export interface UserDocument extends WipFields {
   id: string;
   fileName: string;
   mimeType: string;

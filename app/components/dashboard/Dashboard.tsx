@@ -5,9 +5,12 @@ import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import MetricsCharts from "./MetricsCharts";
 import DocumentsTable from "./DocumentsTable";
-import UploadModal from "./UploadModal";
+import UploadModal, { type UploadInput } from "./UploadModal";
+import { documents as seedDocuments, type DocumentRow } from "./data";
+import { mergeWipFields } from "../../lib/documentExtraction";
 
 export default function Dashboard() {
+  const [documents, setDocuments] = useState<DocumentRow[]>(seedDocuments);
   const [query, setQuery] = useState("");
   const [isUploadOpen, setUploadOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -17,6 +20,27 @@ export default function Dashboard() {
     const timer = window.setTimeout(() => setToast(null), 3200);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  function handleUpload(input: UploadInput) {
+    const extracted = input.extractedFields;
+    const wip = mergeWipFields(extracted, {
+      contactName: "Unassigned",
+      modelName: input.engineModel,
+    });
+    const row: DocumentRow = {
+      ...wip,
+      sNo: documents.length + 1,
+      id: `#DOC-${Math.floor(1_000_000 + Math.random() * 9_000_000)}`,
+      engineer: wip.contactName,
+      flag: "",
+      flagLabel: "",
+      vessel: input.vesselName,
+      engine: input.engineModel,
+      date: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+      status: "review",
+    };
+    setDocuments((prev) => [row, ...prev]);
+  }
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -30,7 +54,7 @@ export default function Dashboard() {
               onUploadClick={() => setUploadOpen(true)}
             />
             <MetricsCharts />
-            <DocumentsTable query={query} />
+            <DocumentsTable documents={documents} query={query} />
           </main>
         </div>
       </div>
@@ -39,6 +63,7 @@ export default function Dashboard() {
         isOpen={isUploadOpen}
         onClose={() => setUploadOpen(false)}
         onSuccess={(message) => setToast(message)}
+        onUpload={handleUpload}
       />
 
       {toast ? (
