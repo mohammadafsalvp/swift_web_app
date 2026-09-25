@@ -1,4 +1,4 @@
-import { IconDownload, IconEye } from "../dashboard/icons";
+import { IconDownload, IconEye, IconTrash } from "../dashboard/icons";
 import { statusTone, toneDot } from "../dashboard/data";
 import {
   libraryTabs,
@@ -38,6 +38,8 @@ interface UserDocumentsTableProps {
   isLoading: boolean;
   onPreview: (doc: UserDocument) => void;
   onDownload: (doc: UserDocument) => void;
+  onDelete: (doc: UserDocument) => void;
+  onAttachDoc?: (doc: UserDocument) => void;
 }
 
 export default function UserDocumentsTable({
@@ -49,6 +51,8 @@ export default function UserDocumentsTable({
   isLoading,
   onPreview,
   onDownload,
+  onDelete,
+  onAttachDoc,
 }: UserDocumentsTableProps) {
   return (
     <article className="rounded-xl border border-border bg-surface p-5 shadow-card sm:p-6">
@@ -103,7 +107,8 @@ export default function UserDocumentsTable({
               <th className="px-3 py-3 font-medium">Swift Value</th>
               <th className="px-3 py-3 font-medium">IDC Value</th>
               <th className="px-3 py-3 font-medium">Scope of Work</th>
-              <th className="px-3 py-3 font-medium">Job Location Report Submission</th>
+              <th className="px-3 py-3 font-medium">Job Location</th>
+              <th className="px-3 py-3 font-medium">Report Submission</th>
               <th className="px-3 py-3 font-medium">Completion Report Sign</th>
               <th className="px-3 py-3 font-medium">Job Completion Date</th>
               <th className="px-3 py-3 font-medium">Remarks</th>
@@ -112,14 +117,26 @@ export default function UserDocumentsTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-border text-text-secondary">
-            {documents.map((doc) => (
+            {documents.map((doc, idx) => (
               <tr key={doc.id} className="group transition-colors hover:bg-surface-inset">
-                <td className="whitespace-nowrap px-3 py-3.5">{doc.sNo}</td>
+                <td className="whitespace-nowrap px-3 py-3.5 font-mono text-label-sm font-medium">
+                  {idx + 1}
+                </td>
                 <td className="whitespace-nowrap px-3 py-3.5 font-semibold text-text-primary">
                   {doc.customer || "-"}
                 </td>
                 <td className="whitespace-nowrap px-3 py-3.5 font-medium text-text-primary">
-                  {doc.jobNo || "-"}
+                  <div className="flex items-center gap-2">
+                    <span>{doc.jobNo || "-"}</span>
+                    {doc.attachments && doc.attachments.length > 1 ? (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary"
+                        title={`${doc.attachments.length} documents attached:\n${doc.attachments.map((a) => a.fileName).join("\n")}`}
+                      >
+                        📎 {doc.attachments.length}
+                      </span>
+                    ) : null}
+                  </div>
                 </td>
                 <td className="whitespace-nowrap px-3 py-3.5 font-medium">{doc.model}</td>
                 <td className="whitespace-nowrap px-3 py-3.5 font-mono text-label-sm">
@@ -160,7 +177,10 @@ export default function UserDocumentsTable({
                 <td className="max-w-[240px] truncate px-3 py-3.5" title={doc.scopeOfWork}>
                   {doc.scopeOfWork || "-"}
                 </td>
-                <td className="whitespace-nowrap px-3 py-3.5">{doc.jobLocationReportSubmission}</td>
+                <td className="whitespace-nowrap px-3 py-3.5">{doc.jobLocation || "-"}</td>
+                <td className="whitespace-nowrap px-3 py-3.5">
+                  <StatusChip value={doc.reportSubmission} />
+                </td>
                 <td className="whitespace-nowrap px-3 py-3.5">{doc.completionReportSign}</td>
                 <td className="whitespace-nowrap px-3 py-3.5 text-placeholder">
                   {formatWipDate(doc.jobCompletionDate)}
@@ -171,6 +191,16 @@ export default function UserDocumentsTable({
                 <td className="whitespace-nowrap px-3 py-3.5">{doc.swiftFocalPoint || "-"}</td>
                 <td className="whitespace-nowrap px-3 py-3.5 text-right">
                   <div className="flex items-center justify-end gap-2">
+                    {onAttachDoc ? (
+                      <button
+                        type="button"
+                        onClick={() => onAttachDoc(doc)}
+                        title="Upload document to this job"
+                        className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-1 text-label-sm font-semibold text-primary transition hover:bg-primary hover:text-white"
+                      >
+                        + Add Doc
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => onPreview(doc)}
@@ -187,20 +217,28 @@ export default function UserDocumentsTable({
                       <IconDownload className="h-3.5 w-3.5" />
                       Download
                     </button>
+                    <button
+                      type="button"
+                      aria-label={`Delete ${doc.fileName}`}
+                      onClick={() => onDelete(doc)}
+                      className="rounded-lg p-1.5 text-placeholder transition hover:bg-danger-bg hover:text-danger"
+                    >
+                      <IconTrash className="h-4 w-4" />
+                    </button>
                   </div>
                 </td>
               </tr>
             ))}
             {!isLoading && documents.length === 0 ? (
               <tr>
-                <td colSpan={26} className="px-3 py-8 text-center text-text-secondary">
+                <td colSpan={27} className="px-3 py-8 text-center text-text-secondary">
                   {query ? <>No jobs match &quot;{query}&quot;.</> : "No jobs in this view yet."}
                 </td>
               </tr>
             ) : null}
             {isLoading ? (
               <tr>
-                <td colSpan={26} className="px-3 py-8 text-center text-text-secondary">
+                <td colSpan={27} className="px-3 py-8 text-center text-text-secondary">
                   Loading jobs…
                 </td>
               </tr>

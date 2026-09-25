@@ -8,7 +8,13 @@ import { IconBlueprints, IconEngine, IconFolder, IconUploadCloud } from "../dash
 import UserSummary from "./UserSummary";
 import UserDocumentsTable from "./UserDocumentsTable";
 import DocumentDetailPanel from "../dashboard/DocumentDetailPanel";
-import { addDocument, downloadDocument, listDocuments } from "./documentsRepo";
+import {
+  addDocument,
+  deleteDocument,
+  downloadDocument,
+  listDocuments,
+  subscribeToChanges,
+} from "./documentsRepo";
 import {
   categories,
   categoryLabel,
@@ -27,15 +33,25 @@ const sidebarItems: SidebarItem[] = [
 
 function matchesView(doc: UserDocument, view: LibraryView) {
   if (view === "all") return true;
-  if (view === "mine") return doc.uploadedBy === currentUser.name;
-  return doc.category === view;
+  if (view === "mine") {
+    return (
+      doc.uploadedBy === currentUser.name ||
+      Boolean(doc.attachments?.some((a) => a.uploadedBy === currentUser.name))
+    );
+  }
+  return (
+    doc.category === view ||
+    Boolean(doc.attachments?.some((a) => a.category === view))
+  );
 }
 
 function matchesQuery(doc: UserDocument, query: string) {
   if (!query) return true;
+  const attachmentNames = doc.attachments?.map((a) => a.fileName).join(" ") || "";
   const haystack = [
     doc.id,
     doc.fileName,
+    attachmentNames,
     doc.uploadedBy,
     doc.vessel,
     doc.engine,
@@ -60,6 +76,7 @@ export default function UserPortal() {
   const [query, setQuery] = useState("");
   const [view, setView] = useState<LibraryView>("all");
   const [isUploadOpen, setUploadOpen] = useState(false);
+  const [targetJobForUpload, setTargetJobForUpload] = useState<UserDocument | null>(null);
   const [previewDoc, setPreviewDoc] = useState<UserDocument | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -68,6 +85,10 @@ export default function UserPortal() {
       setDocuments(docs);
       setNow(Date.now());
       setLoading(false);
+    });
+    // picks up uploads/deletes made in the admin dashboard in another open tab
+    return subscribeToChanges(() => {
+      listDocuments().then(setDocuments);
     });
   }, []);
 
@@ -91,13 +112,29 @@ export default function UserPortal() {
   );
 
   async function handleUpload(input: UploadInput) {
-    const doc = await addDocument(input);
-    setDocuments((prev) => [doc, ...prev]);
+    await addDocument(input);
+    const updated = await listDocuments();
+    setDocuments(updated);
   }
 
-  async function handleDownload(doc: UserDocument) {
-    await downloadDocument(doc);
-    setToast(`Downloading ${doc.fileName}`);
+  function handleAttachDoc(doc: UserDocument) {
+    setTargetJobForUpload(doc);
+    setUploadOpen(true);
+  }
+
+  async function handleDownload(doc: UserDocument, attachmentId?: string) {
+    await downloadDocument(doc, attachmentId);
+    const att = attachmentId && doc.attachments ? doc.attachments.find((a) => a.id === attachmentId) : null;
+    setToast(`Downloading ${att ? att.fileName : doc.fileName}`);
+  }
+
+  async function handleDelete(doc: UserDocument) {
+    if (!window.confirm(`Delete ${doc.fileName}? This cannot be undone.`)) return;
+    await deleteDocument(doc.id);
+    const updated = await listDocuments();
+    setDocuments(updated);
+    if (previewDoc?.id === doc.id) setPreviewDoc(null);
+    setToast(`${doc.fileName} was deleted.`);
   }
 
   function handleViewChange(next: LibraryView) {
@@ -132,7 +169,10 @@ export default function UserPortal() {
             <TopBar
               query={query}
               onQueryChange={setQuery}
-              onUploadClick={() => setUploadOpen(true)}
+              onUploadClick={() => {
+                setTargetJobForUpload(null);
+                setUploadOpen(true);
+              }}
               showExport={false}
             />
             <div>
@@ -154,6 +194,8 @@ export default function UserPortal() {
                 isLoading={isLoading}
                 onPreview={setPreviewDoc}
                 onDownload={handleDownload}
+                onDelete={handleDelete}
+                onAttachDoc={handleAttachDoc}
               />
             </div>
           </main>
@@ -162,16 +204,22 @@ export default function UserPortal() {
 
       <UploadModal
         isOpen={isUploadOpen}
-        onClose={() => setUploadOpen(false)}
+        onClose={() => {
+          setUploadOpen(false);
+          setTargetJobForUpload(null);
+        }}
         onSuccess={(message) => setToast(message)}
         onUpload={handleUpload}
         categories={categories}
+        existingJobs={documents}
+        targetJob={targetJobForUpload}
       />
 
       <DocumentDetailPanel
         doc={previewDoc}
         onClose={() => setPreviewDoc(null)}
         onDownload={handleDownload}
+        onAttachMore={handleAttachDoc}
       />
 
       {toast ? (

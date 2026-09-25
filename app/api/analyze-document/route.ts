@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { system, user } = buildExtractionPrompt(text.slice(0, MAX_TEXT_CHARS));
+  const { system, user } = buildExtractionPrompt(text.slice(0, MAX_TEXT_CHARS), file.name);
 
   let completion: Response;
   try {

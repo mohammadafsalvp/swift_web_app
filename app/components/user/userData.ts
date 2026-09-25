@@ -15,6 +15,17 @@ export const categoryLabel = Object.fromEntries(
   categories.map((c) => [c.key, c.label]),
 ) as Record<CategoryKey, string>;
 
+export interface JobAttachment {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  category?: CategoryKey;
+  uploadedBy: string;
+  uploadedAt: string; // ISO timestamp
+  objectUrl?: string;
+}
+
 // shape mirrors the future `documents` table; `objectUrl` only exists for files uploaded this session
 export interface UserDocument extends WipFields {
   id: string;
@@ -31,6 +42,7 @@ export interface UserDocument extends WipFields {
   uploadedAt: string; // ISO timestamp
   status: DocStatus;
   objectUrl?: string;
+  attachments?: JobAttachment[];
 }
 
 export interface Employee {

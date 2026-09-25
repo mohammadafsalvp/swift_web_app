@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { IconClose, IconDownload } from "./icons";
 import { statusMeta, statusTone, toneDot, type DocStatus, type WipFields } from "./data";
 
-// Structural shape both the admin DocumentRow and the user-portal UserDocument satisfy,
-// so this single panel renders either without an adapter layer.
+// Structural shape UserDocument satisfies (used by both the admin and employee portals,
+// which now share a single document store), so this panel needs no adapter layer.
 export type DetailDocument = WipFields & {
   id: string;
   vessel: string;
@@ -22,12 +22,23 @@ export type DetailDocument = WipFields & {
   uploadedBy?: string;
   uploadedAt?: string;
   objectUrl?: string;
+  attachments?: {
+    id: string;
+    fileName: string;
+    mimeType: string;
+    sizeBytes: number;
+    category?: string;
+    uploadedBy: string;
+    uploadedAt: string;
+    objectUrl?: string;
+  }[];
 };
 
 interface DocumentDetailPanelProps<T extends DetailDocument> {
   doc: T | null;
   onClose: () => void;
-  onDownload?: (doc: T) => void;
+  onDownload?: (doc: T, attachmentId?: string) => void;
+  onAttachMore?: (doc: T) => void;
 }
 
 function formatMoney(value: number): string {
@@ -35,6 +46,7 @@ function formatMoney(value: number): string {
 }
 
 function formatBytes(bytes: number): string {
+  if (!bytes) return "0 B";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -76,17 +88,22 @@ export default function DocumentDetailPanel<T extends DetailDocument>({
   doc,
   onClose,
   onDownload,
+  onAttachMore,
 }: DocumentDetailPanelProps<T>) {
   const [mountedDoc, setMountedDoc] = useState<T | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [prevDoc, setPrevDoc] = useState<T | null>(null);
+  const [activeAttachmentId, setActiveAttachmentId] = useState<string | null>(null);
 
-  // Adjust state during render when the `doc` prop changes, per React's guidance for
-  // deriving state from props without an effect (avoids the extra render an effect causes).
+  // Adjust state during render when the `doc` prop changes
   if (doc !== prevDoc) {
     setPrevDoc(doc);
-    if (doc) setMountedDoc(doc);
-    else setIsOpen(false);
+    if (doc) {
+      setMountedDoc(doc);
+      setActiveAttachmentId(doc.attachments?.[0]?.id || null);
+    } else {
+      setIsOpen(false);
+    }
   }
 
   useEffect(() => {
@@ -124,9 +141,36 @@ export default function DocumentDetailPanel<T extends DetailDocument>({
   if (!mountedDoc) return null;
 
   const d = mountedDoc;
-  const isFile = Boolean(d.fileName);
+
+  // Determine active document to preview
+  const attachmentsList =
+    d.attachments && d.attachments.length > 0
+      ? d.attachments
+      : d.fileName
+      ? [
+          {
+            id: d.id,
+            fileName: d.fileName,
+            mimeType: d.mimeType || "application/octet-stream",
+            sizeBytes: d.sizeBytes || 0,
+            category: d.category,
+            uploadedBy: d.uploadedBy || "",
+            uploadedAt: d.uploadedAt || "",
+            objectUrl: d.objectUrl,
+          },
+        ]
+      : [];
+
+  const currentFile =
+    (activeAttachmentId ? attachmentsList.find((a) => a.id === activeAttachmentId) : null) ??
+    attachmentsList[0] ??
+    null;
+
+  const isFile = Boolean(currentFile?.fileName);
   const canPreview =
-    isFile && d.objectUrl && (d.mimeType?.startsWith("image/") || d.mimeType === "application/pdf");
+    isFile &&
+    currentFile?.objectUrl &&
+    (currentFile.mimeType?.startsWith("image/") || currentFile.mimeType === "application/pdf");
   const tone = d.status ? undefined : statusTone(d.poStatus);
 
   return (
@@ -147,20 +191,21 @@ export default function DocumentDetailPanel<T extends DetailDocument>({
       >
         <div className="flex items-center justify-between gap-3 border-b border-border px-6 py-5">
           <div className="flex min-w-0 items-center gap-3">
-            {isFile ? (
-              <span className="inline-flex h-10 w-12 shrink-0 items-center justify-center rounded-md border border-border bg-surface-inset font-mono text-[10px] font-semibold text-text-secondary">
-                {fileExtension(d.fileName!).slice(0, 4)}
-              </span>
-            ) : (
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-tertiary text-label-md font-bold text-secondary">
-                {d.flag || d.vessel.slice(0, 1)}
-              </span>
-            )}
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-label-md font-bold text-primary">
+              {d.flag || (d.customer ? d.customer.slice(0, 2).toUpperCase() : "JB")}
+            </span>
             <div className="min-w-0">
               <h3 id="detailPanelTitle" className="truncate text-headline-sm text-text-primary">
-                {d.fileName || d.vessel}
+                {d.customer || d.vessel}
               </h3>
-              <p className="truncate text-label-sm text-text-secondary">{d.jobNo || d.id}</p>
+              <p className="truncate text-label-sm text-text-secondary">
+                Job No: <span className="font-mono font-medium text-text-primary">{d.jobNo || d.id}</span>
+                {attachmentsList.length > 0 && (
+                  <span className="ml-2 rounded bg-surface-inset px-1.5 py-0.5 text-xs text-text-secondary">
+                    {attachmentsList.length} file{attachmentsList.length > 1 ? "s" : ""}
+                  </span>
+                )}
+              </p>
             </div>
           </div>
           <button
@@ -174,21 +219,36 @@ export default function DocumentDetailPanel<T extends DetailDocument>({
         </div>
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-5">
-          {isFile ? (
+          {/* File Preview Container */}
+          {isFile && currentFile ? (
             <div className="mb-6 overflow-hidden rounded-lg border border-border bg-surface-inset">
-              {canPreview && d.mimeType!.startsWith("image/") ? (
-                // eslint-disable-next-line @next/next/no-img-element -- local object URL, not optimizable
-                <img src={d.objectUrl} alt={d.fileName} className="mx-auto max-h-80 object-contain" />
+              <div className="flex items-center justify-between border-b border-border bg-surface px-3 py-2 text-label-sm">
+                <span className="truncate font-medium text-text-primary">
+                  Viewing: {currentFile.fileName}
+                </span>
+                <span className="shrink-0 text-xs text-text-secondary">
+                  {formatBytes(currentFile.sizeBytes)}
+                </span>
+              </div>
+              {canPreview && currentFile.mimeType!.startsWith("image/") ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={currentFile.objectUrl}
+                  alt={currentFile.fileName}
+                  className="mx-auto max-h-80 object-contain p-2"
+                />
               ) : canPreview ? (
-                <iframe src={d.objectUrl} title={d.fileName} className="h-80 w-full" />
+                <iframe src={currentFile.objectUrl} title={currentFile.fileName} className="h-80 w-full" />
               ) : (
-                <p className="px-4 py-10 text-center text-body-md text-text-secondary">
-                  Preview isn&apos;t available for this file type. Download it to open.
-                </p>
+                <div className="px-4 py-8 text-center text-body-md text-text-secondary">
+                  <p>Preview is not rendered for this document format ({fileExtension(currentFile.fileName)}).</p>
+                  <p className="mt-1 text-label-sm text-placeholder">Download to view full content.</p>
+                </div>
               )}
             </div>
           ) : null}
 
+          {/* Status Badges */}
           <div className="flex flex-wrap items-center gap-2.5">
             {d.status ? (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-inset px-3 py-1 text-label-sm font-medium text-text-primary">
@@ -202,9 +262,95 @@ export default function DocumentDetailPanel<T extends DetailDocument>({
                 PO {d.poStatus}
               </span>
             ) : null}
+            {d.paymentStatus ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-inset px-3 py-1 text-label-sm font-medium text-text-primary">
+                Payment {d.paymentStatus}
+              </span>
+            ) : null}
           </div>
 
           <div className="mt-6 space-y-6">
+            {/* ── Job Documents & Attachments Section ── */}
+            <section className="rounded-xl border border-border bg-surface-inset p-4">
+              <div className="flex items-center justify-between">
+                <SectionHeading>
+                  Job Documents &amp; Attachments ({attachmentsList.length})
+                </SectionHeading>
+                {onAttachMore ? (
+                  <button
+                    type="button"
+                    onClick={() => onAttachMore(d)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-label-sm font-semibold text-primary transition hover:bg-primary hover:text-white"
+                  >
+                    + Attach File
+                  </button>
+                ) : null}
+              </div>
+
+              {attachmentsList.length === 0 ? (
+                <p className="mt-2 text-label-sm text-text-secondary">No files attached to this job.</p>
+              ) : (
+                <div className="mt-3 divide-y divide-border rounded-lg border border-border bg-surface overflow-hidden">
+                  {attachmentsList.map((att) => {
+                    const isSelected = currentFile?.id === att.id;
+                    return (
+                      <div
+                        key={att.id}
+                        className={`flex items-center justify-between p-3 transition ${
+                          isSelected ? "bg-primary/5 border-l-4 border-l-primary" : "hover:bg-surface-inset"
+                        }`}
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="inline-flex h-9 w-10 shrink-0 items-center justify-center rounded border border-border bg-surface-inset font-mono text-[10px] font-semibold text-text-secondary">
+                            {fileExtension(att.fileName).slice(0, 4)}
+                          </span>
+                          <div className="min-w-0">
+                            <p
+                              className="truncate text-body-sm font-semibold text-text-primary"
+                              title={att.fileName}
+                            >
+                              {att.fileName}
+                            </p>
+                            <p className="text-[11px] text-placeholder">
+                              {formatBytes(att.sizeBytes)} • {formatDate(att.uploadedAt)}
+                              {att.uploadedBy ? ` • By ${att.uploadedBy}` : ""}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-2">
+                          {att.objectUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => setActiveAttachmentId(att.id)}
+                              className={`rounded px-2.5 py-1 text-label-sm transition ${
+                                isSelected
+                                  ? "bg-primary text-white"
+                                  : "border border-border bg-surface text-text-secondary hover:text-text-primary hover:bg-surface-inset"
+                              }`}
+                            >
+                              {isSelected ? "Viewing" : "Preview"}
+                            </button>
+                          ) : null}
+                          {onDownload ? (
+                            <button
+                              type="button"
+                              onClick={() => onDownload(d, att.id)}
+                              className="rounded border border-border bg-surface p-1.5 text-text-secondary transition hover:bg-surface-inset hover:text-text-primary"
+                              title={`Download ${att.fileName}`}
+                            >
+                              <IconDownload className="h-4 w-4" />
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {/* Equipment & Asset */}
             <section>
               <SectionHeading>Equipment &amp; Asset</SectionHeading>
               <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-3">
@@ -217,28 +363,7 @@ export default function DocumentDetailPanel<T extends DetailDocument>({
               </dl>
             </section>
 
-            {isFile ? (
-              <section>
-                <SectionHeading>File</SectionHeading>
-                <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-3">
-                  <InfoField label="Uploaded By" value={d.uploadedBy || "-"} />
-                  <InfoField label="Upload Date" value={formatDate(d.uploadedAt || "")} />
-                  <InfoField label="Size" value={d.sizeBytes ? formatBytes(d.sizeBytes) : "-"} />
-                  <InfoField label="Category" value={d.category || "-"} />
-                  <InfoField label="Document ID" value={d.id} mono />
-                </dl>
-              </section>
-            ) : (
-              <section>
-                <SectionHeading>Job Overview</SectionHeading>
-                <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-3">
-                  <InfoField label="Document ID" value={d.id} mono />
-                  <InfoField label="Engineer" value={d.engineer || d.contactName} />
-                  <InfoField label="Date" value={d.date || formatDate(d.jobOpeningDate)} />
-                </dl>
-              </section>
-            )}
-
+            {/* Job / WIP Details */}
             <section>
               <SectionHeading>Job / WIP Details</SectionHeading>
               <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-3">
@@ -256,7 +381,8 @@ export default function DocumentDetailPanel<T extends DetailDocument>({
                 <InfoField label="Invoice Date" value={formatDate(d.invoiceDate)} />
                 <InfoField label="Swift Value" value={formatMoney(d.swiftValue)} />
                 <InfoField label="IDC Value" value={formatMoney(d.idcValue)} />
-                <InfoField label="Job Location Report" value={d.jobLocationReportSubmission} />
+                <InfoField label="Job Location" value={d.jobLocation} />
+                <InfoField label="Report Submission" value={d.reportSubmission} />
                 <InfoField label="Completion Report Sign" value={d.completionReportSign} />
                 <InfoField label="Job Completion Date" value={formatDate(d.jobCompletionDate)} />
                 <InfoField label="Swift Focal Point" value={d.swiftFocalPoint} />
@@ -284,24 +410,37 @@ export default function DocumentDetailPanel<T extends DetailDocument>({
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2.5 border-t border-border px-6 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg px-4 py-2 text-label-md text-text-secondary transition hover:bg-surface-inset"
-          >
-            Close
-          </button>
-          {onDownload ? (
+        <div className="flex items-center justify-between border-t border-border px-6 py-4">
+          <div>
+            {onAttachMore ? (
+              <button
+                type="button"
+                onClick={() => onAttachMore(d)}
+                className="rounded-lg border border-border bg-surface px-4 py-2 text-label-md text-text-primary transition hover:bg-surface-inset"
+              >
+                + Attach Another Document
+              </button>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
-              onClick={() => onDownload(d)}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-label-md font-bold text-white shadow-card transition hover:bg-primary-hover"
+              onClick={onClose}
+              className="rounded-lg px-4 py-2 text-label-md text-text-secondary transition hover:bg-surface-inset"
             >
-              <IconDownload className="h-4 w-4" />
-              Download
+              Close
             </button>
-          ) : null}
+            {onDownload ? (
+              <button
+                type="button"
+                onClick={() => onDownload(d, currentFile?.id)}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-label-md font-bold text-white shadow-card transition hover:bg-primary-hover"
+              >
+                <IconDownload className="h-4 w-4" />
+                Download {currentFile ? currentFile.fileName : "Document"}
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>

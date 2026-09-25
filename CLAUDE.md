@@ -101,3 +101,5 @@ IDC Swift implements dedicated domain-specific agents:
   - Admin Dashboard (`/`): Processing rate metrics, sector vault breakdown, document review queue.
   - User / Employee Portal (`/user`): Personal uploads, filtered category views, live document previews.
   - Modals (`UploadModal`, `DocumentPreviewModal`): Ingestion entry points and inspection interfaces.
+
+

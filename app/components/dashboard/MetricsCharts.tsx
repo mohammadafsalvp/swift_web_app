@@ -1,12 +1,56 @@
+"use client";
+
+import { useMemo } from "react";
 import { IconCalendar, IconExpand, IconFilter, IconSort } from "./icons";
 import { processingRateBars, vaultLegend, vaultStacks, vaultTotalUsd } from "./data";
 import { formatAed } from "./currency";
+import type { UserDocument } from "../user/userData";
 
 const ACTIVE_BAR_INDEX = 5;
 
-export default function MetricsCharts() {
+interface MetricsChartsProps {
+  documents?: UserDocument[];
+}
+
+export default function MetricsCharts({ documents = [] }: MetricsChartsProps) {
+  // Derive live vault total from uploaded docs; fall back to seed constant when none available
+  const { liveVaultUsd, liveGrowthPct, barHeights } = useMemo(() => {
+    if (documents.length === 0) {
+      return { liveVaultUsd: vaultTotalUsd, liveGrowthPct: 32.2, barHeights: processingRateBars };
+    }
+
+    const totalSwift = documents.reduce((s, d) => s + (d.swiftValue ?? 0), 0);
+
+    // Build 12 monthly bars from uploadedAt timestamps
+    const now = Date.now();
+    const buckets = Array.from({ length: 12 }, (_, i) => {
+      const start = now - (12 - i) * 30 * 24 * 60 * 60 * 1000;
+      const end = now - (11 - i) * 30 * 24 * 60 * 60 * 1000;
+      return documents.filter((d) => {
+        const t = new Date(d.uploadedAt).getTime();
+        return t >= start && t < end;
+      }).length;
+    });
+    const maxBucket = Math.max(...buckets, 1);
+    const dynamicBars = buckets.map((b) => Math.round((b / maxBucket) * 95) + 5);
+
+    // Growth vs seed
+    const growthPct = vaultTotalUsd > 0
+      ? Math.round(((totalSwift - vaultTotalUsd) / vaultTotalUsd) * 1000) / 10
+      : 0;
+
+    return {
+      liveVaultUsd: totalSwift || vaultTotalUsd,
+      liveGrowthPct: growthPct,
+      barHeights: dynamicBars,
+    };
+  }, [documents]);
+
+  const isPositive = liveGrowthPct >= 0;
+
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      {/* ── Processing Rate Chart ── */}
       <article className="flex flex-col justify-between rounded-xl border border-border bg-surface p-5 shadow-card sm:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-headline-sm text-text-primary">
@@ -37,15 +81,13 @@ export default function MetricsCharts() {
             <span>0%</span>
           </div>
           <div className="pointer-events-none absolute left-[48%] top-0 flex -translate-x-1/2 flex-col items-center">
-            <span className="mb-0.5 text-[11px] font-semibold text-text-primary">
-              19 Sep
-            </span>
+            <span className="mb-0.5 text-[11px] font-semibold text-text-primary">Latest</span>
           </div>
           <div className="flex h-44 items-end justify-between gap-1.5 pl-2 pr-10 sm:gap-2">
-            {processingRateBars.map((height, i) => (
+            {barHeights.map((height, i) => (
               <div
                 key={i}
-                className={`relative w-full rounded-t-sm ${
+                className={`relative w-full rounded-t-sm transition-all duration-500 ${
                   i === ACTIVE_BAR_INDEX
                     ? "bg-primary shadow-md"
                     : "bg-gradient-to-t from-border via-surface-inset to-surface"
@@ -63,6 +105,7 @@ export default function MetricsCharts() {
         </div>
       </article>
 
+      {/* ── Vault Total (live) ── */}
       <article className="flex flex-col justify-between rounded-xl border border-border bg-surface p-5 shadow-card sm:p-6">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-label-md uppercase tracking-wider text-text-secondary">
@@ -87,13 +130,37 @@ export default function MetricsCharts() {
         </div>
 
         <div className="mb-4 flex items-baseline gap-3">
-          <h2 className="text-headline-xl text-text-primary">
-            {formatAed(vaultTotalUsd)}
-          </h2>
-          <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface-inset px-2.5 py-0.5 text-label-sm text-text-secondary">
-            32.2%
-            <svg className="h-3 w-3 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path d="M5 10l7-7m0 0l7 7m-7-7v18" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" />
+          <h2 className="text-headline-xl text-text-primary">{formatAed(liveVaultUsd)}</h2>
+          <span
+            className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-label-sm ${
+              isPositive
+                ? "border-success/20 bg-success/5 text-success"
+                : "border-danger/20 bg-danger/5 text-danger"
+            }`}
+          >
+            {liveGrowthPct > 0 ? "+" : ""}
+            {liveGrowthPct}%
+            <svg
+              className="h-3 w-3"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              {isPositive ? (
+                <path
+                  d="M5 10l7-7m0 0l7 7m-7-7v18"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.5"
+                />
+              ) : (
+                <path
+                  d="M5 14l7 7m0 0l7-7m-7 7V3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.5"
+                />
+              )}
             </svg>
           </span>
         </div>

@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { IconKebab, IconSort } from "./icons";
-import { statusTone, toneDot, type DocumentRow } from "./data";
+import { IconSort, IconTrash } from "./icons";
+import { statusTone, toneDot } from "./data";
 import DocumentDetailPanel from "./DocumentDetailPanel";
+import type { UserDocument } from "../user/userData";
 
 function formatMoney(value: number): string {
   return value ? `$${value.toLocaleString()}` : "-";
@@ -18,7 +19,7 @@ function formatDate(value: string): string {
   });
 }
 
-function matchesQuery(doc: DocumentRow, query: string) {
+function matchesQuery(doc: UserDocument, query: string) {
   if (!query) return true;
   const haystack = [
     doc.jobNo,
@@ -48,7 +49,7 @@ const wipTabs = [
 
 type WipTabKey = (typeof wipTabs)[number]["key"];
 
-function matchesTab(doc: DocumentRow, tab: WipTabKey) {
+function matchesTab(doc: UserDocument, tab: WipTabKey) {
   switch (tab) {
     case "po-pending":
       return statusTone(doc.poStatus) !== "success";
@@ -74,19 +75,39 @@ function StatusChip({ value }: { value: string }) {
 }
 
 interface DocumentsTableProps {
-  documents: DocumentRow[];
+  documents: UserDocument[];
   query: string;
+  isLoading?: boolean;
+  onDelete: (doc: UserDocument) => void;
+  onAttachDoc?: (doc: UserDocument) => void;
 }
 
-export default function DocumentsTable({ documents, query }: DocumentsTableProps) {
+export default function DocumentsTable({
+  documents,
+  query,
+  isLoading,
+  onDelete,
+  onAttachDoc,
+}: DocumentsTableProps) {
   const [activeTab, setActiveTab] = useState<WipTabKey>("all");
   const [pulsing, setPulsing] = useState(false);
-  const [selectedDoc, setSelectedDoc] = useState<DocumentRow | null>(null);
+  const [selectedDoc, setSelectedDoc] = useState<UserDocument | null>(null);
+  const [sortAsc, setSortAsc] = useState(false);
 
-  const visibleDocs = useMemo(
-    () => documents.filter((doc) => matchesQuery(doc, query) && matchesTab(doc, activeTab)),
-    [documents, query, activeTab],
-  );
+  function handleDeleteClick(doc: UserDocument) {
+    if (window.confirm(`Delete job ${doc.jobNo || doc.id}? This cannot be undone.`)) {
+      if (selectedDoc?.id === doc.id) setSelectedDoc(null);
+      onDelete(doc);
+    }
+  }
+
+  const visibleDocs = useMemo(() => {
+    const filtered = documents.filter((doc) => matchesQuery(doc, query) && matchesTab(doc, activeTab));
+    if (sortAsc) {
+      return [...filtered].sort((a, b) => a.uploadedAt.localeCompare(b.uploadedAt));
+    }
+    return filtered;
+  }, [documents, query, activeTab, sortAsc]);
 
   const tabCounts = useMemo(
     () =>
@@ -131,8 +152,14 @@ export default function DocumentsTable({ documents, query }: DocumentsTableProps
           ))}
           <button
             type="button"
-            aria-label="Sort Order"
-            className="ml-1 rounded-lg border border-border p-2 text-text-secondary hover:bg-surface-inset"
+            aria-label={`Sort: currently ${sortAsc ? "Oldest First" : "Newest First"}`}
+            title={`Toggle Sort (${sortAsc ? "Oldest First" : "Newest First"})`}
+            onClick={() => setSortAsc(!sortAsc)}
+            className={`ml-1 rounded-lg border p-2 transition ${
+              sortAsc
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border text-text-secondary hover:bg-surface-inset"
+            }`}
           >
             <IconSort className="h-4 w-4" />
           </button>
@@ -163,7 +190,8 @@ export default function DocumentsTable({ documents, query }: DocumentsTableProps
               <th className="px-3 py-3 font-medium">Swift Value</th>
               <th className="px-3 py-3 font-medium">IDC Value</th>
               <th className="px-3 py-3 font-medium">Scope of Work</th>
-              <th className="px-3 py-3 font-medium">Job Location Report Submission</th>
+              <th className="px-3 py-3 font-medium">Job Location</th>
+              <th className="px-3 py-3 font-medium">Report Submission</th>
               <th className="px-3 py-3 font-medium">Completion Report Sign</th>
               <th className="px-3 py-3 font-medium">Job Completion Date</th>
               <th className="px-3 py-3 font-medium">Remarks</th>
@@ -176,14 +204,26 @@ export default function DocumentsTable({ documents, query }: DocumentsTableProps
               pulsing ? "opacity-40" : "opacity-100"
             }`}
           >
-            {visibleDocs.map((doc) => (
+            {visibleDocs.map((doc, idx) => (
               <tr key={doc.id} className="group transition-colors hover:bg-surface-inset">
-                <td className="whitespace-nowrap px-3 py-3.5">{doc.sNo}</td>
+                <td className="whitespace-nowrap px-3 py-3.5 font-mono text-label-sm font-medium">
+                  {idx + 1}
+                </td>
                 <td className="whitespace-nowrap px-3 py-3.5 font-semibold text-text-primary">
                   {doc.customer}
                 </td>
                 <td className="whitespace-nowrap px-3 py-3.5 font-medium text-text-primary">
-                  {doc.jobNo}
+                  <div className="flex items-center gap-2">
+                    <span>{doc.jobNo}</span>
+                    {doc.attachments && doc.attachments.length > 1 ? (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary"
+                        title={`${doc.attachments.length} documents attached:\n${doc.attachments.map((a) => a.fileName).join("\n")}`}
+                      >
+                        📎 {doc.attachments.length}
+                      </span>
+                    ) : null}
+                  </div>
                 </td>
                 <td className="whitespace-nowrap px-3 py-3.5 font-medium">{doc.model}</td>
                 <td className="whitespace-nowrap px-3 py-3.5 font-mono text-label-sm">{doc.serialNo}</td>
@@ -220,7 +260,10 @@ export default function DocumentsTable({ documents, query }: DocumentsTableProps
                 <td className="max-w-[240px] truncate px-3 py-3.5" title={doc.scopeOfWork}>
                   {doc.scopeOfWork}
                 </td>
-                <td className="whitespace-nowrap px-3 py-3.5">{doc.jobLocationReportSubmission}</td>
+                <td className="whitespace-nowrap px-3 py-3.5">{doc.jobLocation || "-"}</td>
+                <td className="whitespace-nowrap px-3 py-3.5">
+                  <StatusChip value={doc.reportSubmission} />
+                </td>
                 <td className="whitespace-nowrap px-3 py-3.5">{doc.completionReportSign}</td>
                 <td className="whitespace-nowrap px-3 py-3.5 text-placeholder">
                   {formatDate(doc.jobCompletionDate)}
@@ -231,6 +274,16 @@ export default function DocumentsTable({ documents, query }: DocumentsTableProps
                 <td className="whitespace-nowrap px-3 py-3.5">{doc.swiftFocalPoint}</td>
                 <td className="whitespace-nowrap px-3 py-3.5 text-right">
                   <div className="flex items-center justify-end gap-2">
+                    {onAttachDoc ? (
+                      <button
+                        type="button"
+                        onClick={() => onAttachDoc(doc)}
+                        title="Upload document to this job"
+                        className="rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-1 text-label-sm font-semibold text-primary transition hover:bg-primary hover:text-white"
+                      >
+                        + Add Doc
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => setSelectedDoc(doc)}
@@ -240,19 +293,27 @@ export default function DocumentsTable({ documents, query }: DocumentsTableProps
                     </button>
                     <button
                       type="button"
-                      aria-label="Row options"
-                      className="rounded-lg p-1 text-placeholder hover:bg-surface-inset hover:text-text-primary"
+                      aria-label={`Delete job ${doc.jobNo || doc.id}`}
+                      onClick={() => handleDeleteClick(doc)}
+                      className="rounded-lg p-1.5 text-placeholder transition hover:bg-danger-bg hover:text-danger"
                     >
-                      <IconKebab className="h-4 w-4" />
+                      <IconTrash className="h-4 w-4" />
                     </button>
                   </div>
                 </td>
               </tr>
             ))}
-            {visibleDocs.length === 0 ? (
+            {!isLoading && visibleDocs.length === 0 ? (
               <tr>
-                <td colSpan={26} className="px-3 py-8 text-center text-text-secondary">
-                  No jobs match &quot;{query}&quot;.
+                <td colSpan={27} className="px-3 py-8 text-center text-text-secondary">
+                  {query ? <>No jobs match &quot;{query}&quot;.</> : "No jobs yet."}
+                </td>
+              </tr>
+            ) : null}
+            {isLoading ? (
+              <tr>
+                <td colSpan={27} className="px-3 py-8 text-center text-text-secondary">
+                  Loading jobs…
                 </td>
               </tr>
             ) : null}
@@ -260,7 +321,11 @@ export default function DocumentsTable({ documents, query }: DocumentsTableProps
         </table>
       </div>
     </article>
-    <DocumentDetailPanel doc={selectedDoc} onClose={() => setSelectedDoc(null)} />
+    <DocumentDetailPanel
+      doc={selectedDoc}
+      onClose={() => setSelectedDoc(null)}
+      onAttachMore={onAttachDoc}
+    />
     </>
   );
 }

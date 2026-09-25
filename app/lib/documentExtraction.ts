@@ -27,7 +27,8 @@ const TEXT_KEYS: (keyof WipFields)[] = [
   "invoiceNo",
   "invoiceDate",
   "scopeOfWork",
-  "jobLocationReportSubmission",
+  "jobLocation",
+  "reportSubmission",
   "completionReportSign",
   "jobCompletionDate",
   "remarks",
@@ -59,7 +60,8 @@ export const EXTRACTION_JSON_SCHEMA_HINT = `{
   "swiftValue": number,
   "idcValue": number,
   "scopeOfWork": string,
-  "jobLocationReportSubmission": string,
+  "jobLocation": string,
+  "reportSubmission": string,
   "completionReportSign": string,
   "jobCompletionDate": string (ISO date),
   "remarks": string,
@@ -146,7 +148,8 @@ export function mergeWipFields(
     swiftValue: extracted?.swiftValue ?? 0,
     idcValue: extracted?.idcValue ?? 0,
     scopeOfWork: extracted?.scopeOfWork ?? "",
-    jobLocationReportSubmission: extracted?.jobLocationReportSubmission ?? "Pending",
+    jobLocation: extracted?.jobLocation ?? "",
+    reportSubmission: extracted?.reportSubmission ?? "Pending",
     completionReportSign: extracted?.completionReportSign ?? "Pending",
     jobCompletionDate: extracted?.jobCompletionDate ?? "",
     remarks: extracted?.remarks ?? "",
@@ -154,17 +157,28 @@ export function mergeWipFields(
   };
 }
 
-export function buildExtractionPrompt(documentText: string): { system: string; user: string } {
+export function buildExtractionPrompt(
+  documentText: string,
+  fileName?: string,
+): { system: string; user: string } {
+  const fileContext = fileName ? `File Name: ${fileName}\n\n` : "";
   return {
     system:
       "You are a document-intelligence agent for IDC Swift, a marine & offshore engineering document portal. " +
-      "You extract structured job/WIP metadata from uploaded engineering documents (engine overhaul logs, class " +
-      "survey certificates, blueprints, OEM bulletins). Respond with ONLY a single raw JSON object matching the " +
-      "given schema - no markdown fences, no commentary. Use an empty string \"\" for any text field you cannot " +
-      "find in the document, and 0 for any numeric field you cannot find. Never invent values that are not " +
-      "supported by the document text.",
+      "You extract structured job/WIP metadata from uploaded engineering documents (quotations, estimates, service proposals, " +
+      "engine overhaul logs, class survey certificates, inspection reports, blueprints, and OEM bulletins). " +
+      "Respond with ONLY a single raw JSON object matching the given schema - no markdown fences, no commentary. " +
+      "Use an empty string \"\" for any text field you cannot find in the document, and 0 for any numeric field you cannot find. " +
+      "Never invent values that are not supported by the document text.\n\n" +
+      "SPECIAL INSTRUCTIONS FOR 'scopeOfWork':\n" +
+      "- For quotation files, estimates, work orders, RFQs, or service logs: actively find the section describing the job or services to be carried out (e.g. 'Scope of Work', 'Scope of Supply', 'Work Description', 'Description of Services', 'Quotation for...', 'Service Details', 'Tasks').\n" +
+      "- Summarize or extract a clean, informative description of the scope of work (e.g. 'Main generator overhaul & diagnostic survey', 'Crankshaft & bearing clearance inspection', 'DNV hull & machinery class survey').\n" +
+      "- If the document is a quotation, also look for quotation price / total rate in 'swiftValue' and the client name in 'customer'.\n\n" +
+      "'jobLocation' is the physical site where the job was carried out (e.g. a vessel/rig name, drydock, or " +
+      "workshop) - not a status. 'reportSubmission' is the submission status of the job location report " +
+      "(e.g. 'Submitted', 'Pending') - a status, not a place.",
     user:
       `Extract the following fields as JSON from this document:\n\n${EXTRACTION_JSON_SCHEMA_HINT}\n\n` +
-      `--- DOCUMENT TEXT START ---\n${documentText}\n--- DOCUMENT TEXT END ---`,
+      `${fileContext}--- DOCUMENT TEXT START ---\n${documentText}\n--- DOCUMENT TEXT END ---`,
   };
 }

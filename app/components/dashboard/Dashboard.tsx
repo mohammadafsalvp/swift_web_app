@@ -4,16 +4,35 @@ import { useEffect, useState } from "react";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import MetricsCharts from "./MetricsCharts";
+import FinancialMetrics from "./FinancialMetrics";
 import DocumentsTable from "./DocumentsTable";
 import UploadModal, { type UploadInput } from "./UploadModal";
-import { documents as seedDocuments, type DocumentRow } from "./data";
-import { mergeWipFields } from "../../lib/documentExtraction";
+import { addDocument, deleteDocument, listDocuments, subscribeToChanges } from "../user/documentsRepo";
+import type { UserDocument } from "../user/userData";
+
+// Attribution for uploads made from the admin dashboard; the employee portal's
+// uploads are attributed to `currentUser` from userData.ts. Both write to the
+// same shared store (documentsRepo.ts) so either portal sees the other's uploads.
+const ADMIN_UPLOADER = "IDC Swift Admin";
 
 export default function Dashboard() {
-  const [documents, setDocuments] = useState<DocumentRow[]>(seedDocuments);
+  const [documents, setDocuments] = useState<UserDocument[]>([]);
+  const [isLoading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [isUploadOpen, setUploadOpen] = useState(false);
+  const [targetJobForUpload, setTargetJobForUpload] = useState<UserDocument | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    listDocuments().then((docs) => {
+      setDocuments(docs);
+      setLoading(false);
+    });
+    // picks up uploads/deletes made in the employee portal in another open tab
+    return subscribeToChanges(() => {
+      listDocuments().then(setDocuments);
+    });
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -21,25 +40,21 @@ export default function Dashboard() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  function handleUpload(input: UploadInput) {
-    const extracted = input.extractedFields;
-    const wip = mergeWipFields(extracted, {
-      contactName: "Unassigned",
-      modelName: input.engineModel,
-    });
-    const row: DocumentRow = {
-      ...wip,
-      sNo: documents.length + 1,
-      id: `#DOC-${Math.floor(1_000_000 + Math.random() * 9_000_000)}`,
-      engineer: wip.contactName,
-      flag: "",
-      flagLabel: "",
-      vessel: input.vesselName,
-      engine: input.engineModel,
-      date: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-      status: "review",
-    };
-    setDocuments((prev) => [row, ...prev]);
+  async function handleUpload(input: UploadInput) {
+    await addDocument(input, ADMIN_UPLOADER);
+    const updated = await listDocuments();
+    setDocuments(updated);
+  }
+
+  function handleAttachDoc(doc: UserDocument) {
+    setTargetJobForUpload(doc);
+    setUploadOpen(true);
+  }
+
+  async function handleDelete(doc: UserDocument) {
+    await deleteDocument(doc.id);
+    const updated = await listDocuments();
+    setDocuments(updated);
   }
 
   return (
@@ -51,19 +66,37 @@ export default function Dashboard() {
             <TopBar
               query={query}
               onQueryChange={setQuery}
-              onUploadClick={() => setUploadOpen(true)}
+              onUploadClick={() => {
+                setTargetJobForUpload(null);
+                setUploadOpen(true);
+              }}
             />
-            <MetricsCharts />
-            <DocumentsTable documents={documents} query={query} />
+            {/* Live document-processing rate + vault total charts */}
+            <MetricsCharts documents={documents} />
+            {/* Live financial analytics: revenue, profit, pipeline, sectors */}
+            <FinancialMetrics documents={documents} />
+            {/* WIP job table */}
+            <DocumentsTable
+              documents={documents}
+              query={query}
+              isLoading={isLoading}
+              onDelete={handleDelete}
+              onAttachDoc={handleAttachDoc}
+            />
           </main>
         </div>
       </div>
 
       <UploadModal
         isOpen={isUploadOpen}
-        onClose={() => setUploadOpen(false)}
+        onClose={() => {
+          setUploadOpen(false);
+          setTargetJobForUpload(null);
+        }}
         onSuccess={(message) => setToast(message)}
         onUpload={handleUpload}
+        existingJobs={documents}
+        targetJob={targetJobForUpload}
       />
 
       {toast ? (
