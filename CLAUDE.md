@@ -85,7 +85,7 @@ IDC Swift implements dedicated domain-specific agents:
    - Processes textual narratives, tabulated technical logs, engineering stamps, serial numbers, and blueprint schematics.
 
 4. **Human-in-the-Loop Workflow Integration**
-   - Works collaboratively with marine engineers (`Edgar Humbert`, `Craig Howard`, `Marcus Vance`).
+   - Works collaboratively with marine engineers (`John`, `Craig Howard`, `Marcus Vance`).
    - Empowers engineers to inspect source pages, override recommendations, and download validated reports.
 
 5. **Context Retention & Vault Indexing**

@@ -1,11 +1,6 @@
 import Image from "next/image";
 import type { ComponentType, ReactNode } from "react";
-import {
-  IconAnalytics,
-  IconBlueprints,
-  IconEngine,
-  IconVessels,
-} from "./icons";
+import { IconAnalytics } from "./icons";
 import { navItems } from "./data";
 
 export interface SidebarItem {
@@ -16,9 +11,6 @@ export interface SidebarItem {
 }
 
 const iconByKey = {
-  blueprints: IconBlueprints,
-  vessels: IconVessels,
-  "engine-repairs": IconEngine,
   analytics: IconAnalytics,
 };
 
@@ -55,7 +47,10 @@ export default function Sidebar({
         </div>
       </div>
 
-      <nav aria-label="Main Navigation" className="grid grid-cols-2 gap-2.5">
+      <nav
+        aria-label="Main Navigation"
+        className={`grid gap-2.5 ${items.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}
+      >
         {items.map(({ key, label, href, Icon }) => {
           const isActive = activeKey === key;
           return (

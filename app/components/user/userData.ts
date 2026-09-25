@@ -53,9 +53,9 @@ export interface Employee {
 
 // placeholder until authentication is added
 export const currentUser: Employee = {
-  name: "Edgar Humbert",
-  role: "Marine Engineer",
-  initials: "EH",
+  name: "John",
+  role: "",
+  initials: "J",
 };
 
 // views selectable from the sidebar tiles and the table tabs
@@ -64,10 +64,6 @@ export type LibraryView = "all" | "mine" | CategoryKey;
 export const libraryTabs: { key: LibraryView; label: string }[] = [
   { key: "all", label: "All Documents" },
   { key: "mine", label: "My Uploads" },
-  { key: "blueprint", label: "Blueprints" },
-  { key: "engine-log", label: "Engine Logs" },
-  { key: "inspection", label: "Inspections" },
-  { key: "certificate", label: "Certificates" },
 ];
 
 export function formatBytes(bytes: number): string {

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Sidebar, { type SidebarItem } from "../dashboard/Sidebar";
 import TopBar from "../dashboard/TopBar";
 import UploadModal, { type UploadInput } from "../dashboard/UploadModal";
-import { IconBlueprints, IconEngine, IconFolder, IconUploadCloud } from "../dashboard/icons";
+import { IconFolder, IconUploadCloud } from "../dashboard/icons";
 import UserSummary from "./UserSummary";
 import UserDocumentsTable from "./UserDocumentsTable";
 import DocumentDetailPanel from "../dashboard/DocumentDetailPanel";
@@ -27,8 +27,6 @@ import {
 const sidebarItems: SidebarItem[] = [
   { key: "all", label: "All Documents", href: "#library", Icon: IconFolder },
   { key: "mine", label: "My Uploads", href: "#library", Icon: IconUploadCloud },
-  { key: "blueprint", label: "Blueprints", href: "#library", Icon: IconBlueprints },
-  { key: "engine-log", label: "Engine Repairs", href: "#library", Icon: IconEngine },
 ];
 
 function matchesView(doc: UserDocument, view: LibraryView) {
@@ -157,11 +155,7 @@ export default function UserPortal() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-label-md text-text-primary">{currentUser.name}</p>
-                  <p className="truncate text-label-sm text-text-secondary">{currentUser.role}</p>
                 </div>
-                <span className="rounded-full border border-border bg-surface-inset px-2 py-0.5 text-label-sm text-text-secondary">
-                  Employee
-                </span>
               </div>
             }
           />

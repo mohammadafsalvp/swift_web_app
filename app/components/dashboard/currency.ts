@@ -1,10 +1,16 @@
-export const USD_TO_AED_RATE = 3.6725;
+// all amounts in the app are stored and displayed in UAE Dirham (AED)
+export const CURRENCY = "AED";
 
-export function usdToAed(usdAmount: number): number {
-  return usdAmount * USD_TO_AED_RATE;
+export function formatAed(amount: number): string {
+  return `${CURRENCY} ${amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 }
 
-export function formatAed(usdAmount: number): string {
-  const aed = usdToAed(usdAmount);
-  return `AED ${aed.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+export function formatAedCompact(amount: number): string {
+  if (amount >= 1_000_000) return `${CURRENCY} ${(amount / 1_000_000).toFixed(2)}M`;
+  if (amount >= 1_000) return `${CURRENCY} ${(amount / 1_000).toFixed(1)}K`;
+  return formatAed(amount);
+}
+
+export function formatMoney(value?: number | null): string {
+  return value ? formatAed(value) : "-";
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatMoney } from "./currency";
 import { useEffect, useState } from "react";
 import { IconClose, IconDownload } from "./icons";
 import { statusMeta, statusTone, toneDot, type DocStatus, type WipFields } from "./data";
@@ -39,10 +40,6 @@ interface DocumentDetailPanelProps<T extends DetailDocument> {
   onClose: () => void;
   onDownload?: (doc: T, attachmentId?: string) => void;
   onAttachMore?: (doc: T) => void;
-}
-
-function formatMoney(value: number): string {
-  return value ? `$${value.toLocaleString()}` : "-";
 }
 
 function formatBytes(bytes: number): string {
@@ -256,6 +253,12 @@ export default function DocumentDetailPanel<T extends DetailDocument>({
                 {statusMeta[d.status].label}
               </span>
             ) : null}
+            {d.quotationStatus ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-inset px-3 py-1 text-label-sm font-medium text-text-primary">
+                <span className={`h-2 w-2 rounded-full ${toneDot[statusTone(d.quotationStatus)]}`} />
+                Quotation {d.quotationStatus}
+              </span>
+            ) : null}
             {d.poStatus ? (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-inset px-3 py-1 text-label-sm font-medium text-text-primary">
                 <span className={`h-2 w-2 rounded-full ${toneDot[tone ?? statusTone(d.poStatus)]}`} />
@@ -372,6 +375,7 @@ export default function DocumentDetailPanel<T extends DetailDocument>({
                 <InfoField label="Contact Name" value={d.contactName} />
                 <InfoField label="Job Opening Date" value={formatDate(d.jobOpeningDate)} />
                 <InfoField label="Req No" value={d.reqNo} />
+                <InfoField label="Quotation Status" value={d.quotationStatus} />
                 <InfoField label="PO No" value={d.poNo} />
                 <InfoField label="PO Date" value={formatDate(d.poDate)} />
                 <InfoField label="PO Issued By" value={d.poIssuedBy} />

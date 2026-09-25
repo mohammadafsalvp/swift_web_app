@@ -49,6 +49,7 @@ const EXTRACTED_PREVIEW_FIELDS: { key: keyof ExtractedDocumentFields; label: str
   { key: "customer", label: "Customer" },
   { key: "model", label: "Equipment Model" },
   { key: "serialNo", label: "Serial No" },
+  { key: "quotationStatus", label: "Quotation Status" },
   { key: "poStatus", label: "PO Status" },
   { key: "paymentStatus", label: "Payment Status" },
   { key: "invoiceNo", label: "Invoice No" },

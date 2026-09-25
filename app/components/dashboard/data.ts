@@ -11,6 +11,7 @@ export interface WipFields {
   contactName: string;
   jobOpeningDate: string;
   reqNo: string;
+  quotationStatus: string;
   poStatus: string;
   poDate: string;
   poNo: string;
@@ -51,6 +52,43 @@ export function statusTone(value: string): "success" | "warning" | "danger" | "n
   return "neutral";
 }
 
+// the five status filters shown on the WIP tables in both the Admin Dashboard and the Employee Portal
+export const statusFilterFields = [
+  { key: "jobStatus", label: "Job Status" },
+  { key: "quotationStatus", label: "Quotation Status" },
+  { key: "poStatus", label: "PO Status" },
+  { key: "paymentStatus", label: "Payment Status" },
+  { key: "invoiceSubmissionStatus", label: "Invoice Submission Status" },
+] as const;
+
+export type StatusFilterKey = (typeof statusFilterFields)[number]["key"];
+
+export type StatusFilterState = Record<StatusFilterKey, string>;
+
+export const allStatusFilters: StatusFilterState = {
+  jobStatus: "all",
+  quotationStatus: "all",
+  poStatus: "all",
+  paymentStatus: "all",
+  invoiceSubmissionStatus: "all",
+};
+
+export function statusFilterValue(doc: WipFields & { status: DocStatus }, key: StatusFilterKey): string {
+  if (key === "jobStatus") return statusMeta[doc.status]?.label ?? doc.status;
+  return doc[key] || "";
+}
+
+export function matchesStatusFilters<T extends WipFields & { status: DocStatus }>(
+  doc: T,
+  filters: StatusFilterState,
+): boolean {
+  return statusFilterFields.every(({ key }) => {
+    const active = filters[key];
+    if (!active || active === "all") return true;
+    return statusFilterValue(doc, key) === active;
+  });
+}
+
 export const toneDot: Record<ReturnType<typeof statusTone>, string> = {
   success: "bg-success",
   warning: "bg-warning",
@@ -59,22 +97,19 @@ export const toneDot: Record<ReturnType<typeof statusTone>, string> = {
 };
 
 export const navItems = [
-  { key: "blueprints", label: "Blueprints", href: "#blueprints" },
-  { key: "vessels", label: "Vessels & Rigs", href: "#vessels" },
-  { key: "engine-repairs", label: "Engine Repairs", href: "#engine-repairs" },
   { key: "analytics", label: "Analytics", href: "#analytics" },
 ] as const;
 
 // bar heights as percentages for the processing-rate chart; index 5 is the highlighted "19 Sep" bar
 export const processingRateBars = [38, 52, 68, 40, 82, 95, 76, 58, 30, 62, 88, 48];
 
-// source amounts are USD; convert to AED at render time via formatAed()
-export const vaultTotalUsd = 440925;
+// amounts in AED
+export const vaultTotalAed = 1619297;
 
 export const vaultStacks = [
-  { label: "Onshore Base", valueUsd: 156646, segments: [14, 16, 18, 28, 24] },
-  { label: "Offshore Drilling", valueUsd: 86163, segments: [8, 10, 12, 18, 20] },
-  { label: "Marine Fleets", valueUsd: 198116, segments: [16, 16, 20, 24, 40] },
+  { label: "Onshore Base", valueAed: 575282, segments: [14, 16, 18, 28, 24] },
+  { label: "Offshore Drilling", valueAed: 316434, segments: [8, 10, 12, 18, 20] },
+  { label: "Marine Fleets", valueAed: 727581, segments: [16, 16, 20, 24, 40] },
 ];
 
 export const vaultLegend = [

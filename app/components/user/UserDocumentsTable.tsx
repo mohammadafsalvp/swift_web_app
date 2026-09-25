@@ -1,14 +1,20 @@
+import { useMemo, useState } from "react";
 import { IconDownload, IconEye, IconTrash } from "../dashboard/icons";
-import { statusTone, toneDot } from "../dashboard/data";
+import {
+  allStatusFilters,
+  matchesStatusFilters,
+  statusTone,
+  toneDot,
+  type StatusFilterKey,
+  type StatusFilterState,
+} from "../dashboard/data";
+import StatusFilterBar from "../dashboard/StatusFilterBar";
 import {
   libraryTabs,
   type LibraryView,
   type UserDocument,
 } from "./userData";
-
-function formatMoney(value: number): string {
-  return value ? `$${value.toLocaleString()}` : "-";
-}
+import { formatMoney } from "../dashboard/currency";
 
 function formatWipDate(value: string): string {
   if (!value) return "-";
@@ -54,9 +60,20 @@ export default function UserDocumentsTable({
   onDelete,
   onAttachDoc,
 }: UserDocumentsTableProps) {
+  const [statusFilters, setStatusFilters] = useState<StatusFilterState>(allStatusFilters);
+
+  function handleStatusFilterChange(key: StatusFilterKey, value: string) {
+    setStatusFilters((prev) => ({ ...prev, [key]: value }));
+  }
+
+  const visibleDocs = useMemo(
+    () => documents.filter((doc) => matchesStatusFilters(doc, statusFilters)),
+    [documents, statusFilters],
+  );
+
   return (
     <article className="rounded-xl border border-border bg-surface p-5 shadow-card sm:p-6">
-      <div className="mb-6 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+      <div className="mb-4 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
         <div className="flex items-center gap-2.5">
           <h2 className="text-headline-md text-text-primary">WIP</h2>
           <span className="rounded-full border border-border bg-surface-inset px-2.5 py-1 text-label-sm text-text-secondary">
@@ -77,10 +94,13 @@ export default function UserDocumentsTable({
                   : "text-text-secondary hover:bg-surface-inset hover:text-text-primary"
               }`}
             >
-              {tab.label} {tabCounts[tab.key]}
+              {tab.label}
             </button>
           ))}
         </div>
+      </div>
+      <div className="mb-6">
+        <StatusFilterBar documents={documents} filters={statusFilters} onChange={handleStatusFilterChange} />
       </div>
 
       <div className="-mx-2 overflow-x-auto sm:mx-0">
@@ -96,6 +116,7 @@ export default function UserDocumentsTable({
               <th className="px-3 py-3 font-medium">Contact Name</th>
               <th className="px-3 py-3 font-medium">Job Opening Date</th>
               <th className="px-3 py-3 font-medium">Req No</th>
+              <th className="px-3 py-3 font-medium">Quotation Status</th>
               <th className="px-3 py-3 font-medium">PO Status</th>
               <th className="px-3 py-3 font-medium">PO Date</th>
               <th className="px-3 py-3 font-medium">PO No</th>
@@ -117,7 +138,7 @@ export default function UserDocumentsTable({
             </tr>
           </thead>
           <tbody className="divide-y divide-border text-text-secondary">
-            {documents.map((doc, idx) => (
+            {visibleDocs.map((doc, idx) => (
               <tr key={doc.id} className="group transition-colors hover:bg-surface-inset">
                 <td className="whitespace-nowrap px-3 py-3.5 font-mono text-label-sm font-medium">
                   {idx + 1}
@@ -150,6 +171,9 @@ export default function UserDocumentsTable({
                   {formatWipDate(doc.jobOpeningDate)}
                 </td>
                 <td className="whitespace-nowrap px-3 py-3.5">{doc.reqNo || "-"}</td>
+                <td className="whitespace-nowrap px-3 py-3.5">
+                  <StatusChip value={doc.quotationStatus} />
+                </td>
                 <td className="whitespace-nowrap px-3 py-3.5">
                   <StatusChip value={doc.poStatus} />
                 </td>
@@ -229,16 +253,16 @@ export default function UserDocumentsTable({
                 </td>
               </tr>
             ))}
-            {!isLoading && documents.length === 0 ? (
+            {!isLoading && visibleDocs.length === 0 ? (
               <tr>
-                <td colSpan={27} className="px-3 py-8 text-center text-text-secondary">
+                <td colSpan={28} className="px-3 py-8 text-center text-text-secondary">
                   {query ? <>No jobs match &quot;{query}&quot;.</> : "No jobs in this view yet."}
                 </td>
               </tr>
             ) : null}
             {isLoading ? (
               <tr>
-                <td colSpan={27} className="px-3 py-8 text-center text-text-secondary">
+                <td colSpan={28} className="px-3 py-8 text-center text-text-secondary">
                   Loading jobs…
                 </td>
               </tr>

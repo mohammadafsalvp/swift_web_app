@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { IconCalendar, IconExpand, IconFilter, IconSort } from "./icons";
-import { processingRateBars, vaultLegend, vaultStacks, vaultTotalUsd } from "./data";
+import { processingRateBars, vaultLegend, vaultStacks, vaultTotalAed } from "./data";
 import { formatAed } from "./currency";
 import type { UserDocument } from "../user/userData";
 
@@ -14,9 +14,9 @@ interface MetricsChartsProps {
 
 export default function MetricsCharts({ documents = [] }: MetricsChartsProps) {
   // Derive live vault total from uploaded docs; fall back to seed constant when none available
-  const { liveVaultUsd, liveGrowthPct, barHeights } = useMemo(() => {
+  const { liveVaultAed, liveGrowthPct, barHeights } = useMemo(() => {
     if (documents.length === 0) {
-      return { liveVaultUsd: vaultTotalUsd, liveGrowthPct: 32.2, barHeights: processingRateBars };
+      return { liveVaultAed: vaultTotalAed, liveGrowthPct: 32.2, barHeights: processingRateBars };
     }
 
     const totalSwift = documents.reduce((s, d) => s + (d.swiftValue ?? 0), 0);
@@ -35,12 +35,12 @@ export default function MetricsCharts({ documents = [] }: MetricsChartsProps) {
     const dynamicBars = buckets.map((b) => Math.round((b / maxBucket) * 95) + 5);
 
     // Growth vs seed
-    const growthPct = vaultTotalUsd > 0
-      ? Math.round(((totalSwift - vaultTotalUsd) / vaultTotalUsd) * 1000) / 10
+    const growthPct = vaultTotalAed > 0
+      ? Math.round(((totalSwift - vaultTotalAed) / vaultTotalAed) * 1000) / 10
       : 0;
 
     return {
-      liveVaultUsd: totalSwift || vaultTotalUsd,
+      liveVaultAed: totalSwift || vaultTotalAed,
       liveGrowthPct: growthPct,
       barHeights: dynamicBars,
     };
@@ -130,7 +130,7 @@ export default function MetricsCharts({ documents = [] }: MetricsChartsProps) {
         </div>
 
         <div className="mb-4 flex items-baseline gap-3">
-          <h2 className="text-headline-xl text-text-primary">{formatAed(liveVaultUsd)}</h2>
+          <h2 className="text-headline-xl text-text-primary">{formatAed(liveVaultAed)}</h2>
           <span
             className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-label-sm ${
               isPositive
@@ -169,7 +169,7 @@ export default function MetricsCharts({ documents = [] }: MetricsChartsProps) {
           {vaultStacks.map((stack) => (
             <div key={stack.label} className="flex flex-col items-center">
               <span className="mb-2 text-[11px] font-semibold text-text-secondary">
-                {formatAed(stack.valueUsd)}
+                {formatAed(stack.valueAed)}
               </span>
               <div className="flex w-full max-w-[90px] flex-col gap-1.5">
                 {stack.segments.map((h, i) => (

@@ -2,13 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { IconSort, IconTrash } from "./icons";
-import { statusTone, toneDot } from "./data";
+import { allStatusFilters, matchesStatusFilters, statusTone, toneDot, type StatusFilterKey, type StatusFilterState } from "./data";
 import DocumentDetailPanel from "./DocumentDetailPanel";
+import StatusFilterBar from "./StatusFilterBar";
+import { formatMoney } from "./currency";
 import type { UserDocument } from "../user/userData";
-
-function formatMoney(value: number): string {
-  return value ? `$${value.toLocaleString()}` : "-";
-}
 
 function formatDate(value: string): string {
   if (!value) return "-";
@@ -39,31 +37,6 @@ function matchesQuery(doc: UserDocument, query: string) {
   return haystack.includes(query.toLowerCase());
 }
 
-const wipTabs = [
-  { key: "all", label: "All Jobs" },
-  { key: "po-pending", label: "PO Pending" },
-  { key: "invoice-pending", label: "Invoice Pending" },
-  { key: "payment-pending", label: "Payment Pending" },
-  { key: "completed", label: "Completed" },
-] as const;
-
-type WipTabKey = (typeof wipTabs)[number]["key"];
-
-function matchesTab(doc: UserDocument, tab: WipTabKey) {
-  switch (tab) {
-    case "po-pending":
-      return statusTone(doc.poStatus) !== "success";
-    case "invoice-pending":
-      return statusTone(doc.invoiceSubmissionStatus) !== "success";
-    case "payment-pending":
-      return statusTone(doc.paymentStatus) !== "success";
-    case "completed":
-      return doc.completionReportSign.trim().toLowerCase() === "signed";
-    default:
-      return true;
-  }
-}
-
 function StatusChip({ value }: { value: string }) {
   const tone = statusTone(value);
   return (
@@ -89,10 +62,16 @@ export default function DocumentsTable({
   onDelete,
   onAttachDoc,
 }: DocumentsTableProps) {
-  const [activeTab, setActiveTab] = useState<WipTabKey>("all");
+  const [statusFilters, setStatusFilters] = useState<StatusFilterState>(allStatusFilters);
   const [pulsing, setPulsing] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<UserDocument | null>(null);
   const [sortAsc, setSortAsc] = useState(false);
+
+  function handleStatusFilterChange(key: StatusFilterKey, value: string) {
+    setStatusFilters((prev) => ({ ...prev, [key]: value }));
+    setPulsing(true);
+    window.setTimeout(() => setPulsing(false), 150);
+  }
 
   function handleDeleteClick(doc: UserDocument) {
     if (window.confirm(`Delete job ${doc.jobNo || doc.id}? This cannot be undone.`)) {
@@ -102,26 +81,14 @@ export default function DocumentsTable({
   }
 
   const visibleDocs = useMemo(() => {
-    const filtered = documents.filter((doc) => matchesQuery(doc, query) && matchesTab(doc, activeTab));
+    const filtered = documents.filter(
+      (doc) => matchesQuery(doc, query) && matchesStatusFilters(doc, statusFilters),
+    );
     if (sortAsc) {
       return [...filtered].sort((a, b) => a.uploadedAt.localeCompare(b.uploadedAt));
     }
     return filtered;
-  }, [documents, query, activeTab, sortAsc]);
-
-  const tabCounts = useMemo(
-    () =>
-      Object.fromEntries(
-        wipTabs.map((tab) => [tab.key, documents.filter((doc) => matchesTab(doc, tab.key)).length]),
-      ) as Record<WipTabKey, number>,
-    [documents],
-  );
-
-  function handleTabClick(key: WipTabKey) {
-    setActiveTab(key);
-    setPulsing(true);
-    window.setTimeout(() => setPulsing(false), 150);
-  }
+  }, [documents, query, statusFilters, sortAsc]);
 
   return (
     <>
@@ -133,23 +100,8 @@ export default function DocumentsTable({
             {documents.length}
           </span>
         </div>
-        <div className="flex w-full flex-wrap items-center gap-1.5 md:w-auto" role="tablist">
-          {wipTabs.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tab.key}
-              onClick={() => handleTabClick(tab.key)}
-              className={`rounded-lg px-4 py-2 text-label-md transition ${
-                activeTab === tab.key
-                  ? "bg-primary text-white shadow-card"
-                  : "text-text-secondary hover:bg-surface-inset hover:text-text-primary"
-              }`}
-            >
-              {tab.label} {tabCounts[tab.key]}
-            </button>
-          ))}
+        <div className="flex w-full flex-wrap items-center gap-1.5 md:w-auto">
+          <StatusFilterBar documents={documents} filters={statusFilters} onChange={handleStatusFilterChange} />
           <button
             type="button"
             aria-label={`Sort: currently ${sortAsc ? "Oldest First" : "Newest First"}`}
@@ -179,6 +131,7 @@ export default function DocumentsTable({
               <th className="px-3 py-3 font-medium">Contact Name</th>
               <th className="px-3 py-3 font-medium">Job Opening Date</th>
               <th className="px-3 py-3 font-medium">Req No</th>
+              <th className="px-3 py-3 font-medium">Quotation Status</th>
               <th className="px-3 py-3 font-medium">PO Status</th>
               <th className="px-3 py-3 font-medium">PO Date</th>
               <th className="px-3 py-3 font-medium">PO No</th>
@@ -233,6 +186,9 @@ export default function DocumentsTable({
                   {formatDate(doc.jobOpeningDate)}
                 </td>
                 <td className="whitespace-nowrap px-3 py-3.5">{doc.reqNo}</td>
+                <td className="whitespace-nowrap px-3 py-3.5">
+                  <StatusChip value={doc.quotationStatus} />
+                </td>
                 <td className="whitespace-nowrap px-3 py-3.5">
                   <StatusChip value={doc.poStatus} />
                 </td>
@@ -305,14 +261,14 @@ export default function DocumentsTable({
             ))}
             {!isLoading && visibleDocs.length === 0 ? (
               <tr>
-                <td colSpan={27} className="px-3 py-8 text-center text-text-secondary">
+                <td colSpan={28} className="px-3 py-8 text-center text-text-secondary">
                   {query ? <>No jobs match &quot;{query}&quot;.</> : "No jobs yet."}
                 </td>
               </tr>
             ) : null}
             {isLoading ? (
               <tr>
-                <td colSpan={27} className="px-3 py-8 text-center text-text-secondary">
+                <td colSpan={28} className="px-3 py-8 text-center text-text-secondary">
                   Loading jobs…
                 </td>
               </tr>

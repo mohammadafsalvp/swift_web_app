@@ -2,24 +2,12 @@
 
 import { useMemo } from "react";
 import type { UserDocument } from "../user/userData";
+import { formatAed, formatAedCompact } from "./currency";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 function pct(value: number, total: number): number {
   return total === 0 ? 0 : Math.round((value / total) * 100);
-}
-
-function fmt(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
-  return `$${n.toLocaleString()}`;
-}
-
-function formatAed(usd: number): string {
-  const aed = usd * 3.6725;
-  if (aed >= 1_000_000) return `AED ${(aed / 1_000_000).toFixed(2)}M`;
-  if (aed >= 1_000) return `AED ${(aed / 1_000).toFixed(1)}K`;
-  return `AED ${aed.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
 
 // ── sub-components ────────────────────────────────────────────────────────────
@@ -166,7 +154,7 @@ export default function FinancialMetrics({ documents }: FinancialMetricsProps) {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
         <KpiCard
           label="Total Swift Revenue"
-          value={fmt(stats.totalSwift)}
+          value={formatAedCompact(stats.totalSwift)}
           sub={formatAed(stats.totalSwift)}
           accent="primary"
           animIndex={0}
@@ -174,7 +162,7 @@ export default function FinancialMetrics({ documents }: FinancialMetricsProps) {
         <KpiCard
           label="Profit Margin"
           value={`${stats.profitRate}%`}
-          sub={`IDC Cost ${fmt(stats.totalIdc)}`}
+          sub={`IDC Cost ${formatAedCompact(stats.totalIdc)}`}
           trend={stats.profitDelta}
           accent="success"
           animIndex={1}
@@ -216,7 +204,7 @@ export default function FinancialMetrics({ documents }: FinancialMetricsProps) {
                   </span>
                   <span className="text-body-sm font-medium text-text-primary">{c.name}</span>
                 </div>
-                <span className="text-label-sm font-semibold text-secondary">{fmt(c.value)}</span>
+                <span className="text-label-sm font-semibold text-secondary">{formatAedCompact(c.value)}</span>
               </div>
             ))}
             {stats.topCustomers.length === 0 && (
@@ -235,7 +223,7 @@ export default function FinancialMetrics({ documents }: FinancialMetricsProps) {
             </span>{" "}
             ·{" "}
             <span className="font-semibold text-secondary">
-              {fmt(stats.recentMonthSwift)}
+              {formatAedCompact(stats.recentMonthSwift)}
             </span>
           </p>
           <div className="space-y-3">
